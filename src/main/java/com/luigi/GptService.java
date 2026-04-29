@@ -9,6 +9,8 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -62,8 +64,15 @@ public class GptService {
     @Value("${app.base-url}")
     private String baseUrl;
 
+    private static final int MAX_TEXT_CHARS = 32_000;   // ~8K token input max
+    private static final Duration HTTP_CONNECT_TIMEOUT = Duration.ofSeconds(10);
+    private static final Duration HTTP_REQUEST_TIMEOUT = Duration.ofSeconds(120);
+
     private final ObjectMapper mapper = new ObjectMapper();
-    private final HttpClient httpClient = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build();
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .followRedirects(HttpClient.Redirect.NORMAL)
+            .connectTimeout(HTTP_CONNECT_TIMEOUT)
+            .build();
 
     private final String DATA_DIR = "chat_threads";
     private static final int GCM_TAG_LENGTH = 128;
@@ -102,8 +111,15 @@ public class GptService {
                          String reasoningEffort,
                          String encKey) throws Exception {
 
-        if (threadId == null || threadId.isBlank()) {
-            threadId = java.util.UUID.randomUUID().toString();
+        // Sanitizza input per evitare path traversal
+        if (threadId == null || threadId.isBlank()) threadId = java.util.UUID.randomUUID().toString();
+        threadId  = threadId.replaceAll("[^a-zA-Z0-9._\\-]", "");
+        username  = (username == null || username.isBlank()) ? "guest" : username.replaceAll("[^a-zA-Z0-9._\\-]", "");
+        if (username.isEmpty()) username = "guest";
+
+        // Tronca input testo a MAX_TEXT_CHARS per evitare abusi
+        if (userText != null && userText.length() > MAX_TEXT_CHARS) {
+            userText = userText.substring(0, MAX_TEXT_CHARS);
         }
 
         Path threadPath = Paths.get(DATA_DIR, username, threadId);
@@ -181,8 +197,16 @@ public class GptService {
 
         if (reply == null) reply = "";
 
-        double usd = estimateCostUsd(effectiveModel, tokenCounts[0], tokenCounts[1]);
-        addUsage(username, effectiveModel, tokenCounts[0], tokenCounts[1], usd);
+        // Usage tracking asincrono: non blocca la risposta all'utente
+        final String finalUsername = username;
+        final String finalModel    = effectiveModel;
+        final int    inTok         = tokenCounts[0];
+        final int    outTok        = tokenCounts[1];
+        final double usd           = estimateCostUsd(effectiveModel, tokenCounts[0], tokenCounts[1]);
+        CompletableFuture.runAsync(() -> {
+            try { addUsage(finalUsername, finalModel, inTok, outTok, usd); }
+            catch (IOException e) { System.err.println("Usage tracking error: " + e.getMessage()); }
+        });
 
         messages.add(Map.of("role", "assistant", "content", reply));
         threadData.put("messages", messages);
@@ -213,6 +237,7 @@ public class GptService {
                 .uri(URI.create("https://api.openai.com/v1/responses"))
                 .header("Authorization", "Bearer " + openaiApiKey)
                 .header("Content-Type", "application/json")
+                .timeout(HTTP_REQUEST_TIMEOUT)
                 .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
                 .build();
 
@@ -301,6 +326,7 @@ public class GptService {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .header("Content-Type", "application/json")
+                .timeout(HTTP_REQUEST_TIMEOUT)
                 .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
                 .build();
 
@@ -381,6 +407,7 @@ public class GptService {
                 .uri(URI.create("https://integrate.api.nvidia.com/v1/chat/completions"))
                 .header("Authorization", "Bearer " + nvidiaApiKey)
                 .header("Content-Type", "application/json")
+                .timeout(HTTP_REQUEST_TIMEOUT)
                 .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
                 .build();
 
@@ -564,7 +591,7 @@ public class GptService {
         return p;
     }
 
-    private synchronized void addUsage(String username, String model,
+    private void addUsage(String username, String model,
                                         int inTok, int outTok, double usd) throws IOException {
         LocalDate today = LocalDate.now();
         YearMonth ym = YearMonth.now();

@@ -17,13 +17,19 @@ public class LoginController {
     }
 
     @PostMapping("/login")
-    public String login(@RequestParam String username, @RequestParam String password, HttpSession session) {
+    public String login(@RequestParam String username, @RequestParam String password,
+                        javax.servlet.http.HttpServletRequest request) {
         if (userService.validateLogin(username, password)) {
-            session.setAttribute("user", username);
+            // Session fixation: invalida la vecchia sessione e creane una nuova
+            HttpSession old = request.getSession(false);
+            if (old != null) old.invalidate();
+            HttpSession session = request.getSession(true);
+
+            session.setAttribute("user",     username);
             session.setAttribute("username", username);
-            session.setAttribute("encKey", username + ":" + password);
+            session.setAttribute("encKey",   username + ":" + password);
             if (userService.isAdmin(username)) {
-                session.setAttribute("role", "admin");
+                session.setAttribute("role",    "admin");
                 session.setAttribute("isAdmin", Boolean.TRUE);
             }
             return "OK";

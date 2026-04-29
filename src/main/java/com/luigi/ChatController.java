@@ -12,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.*;
+import java.io.InputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -35,6 +36,9 @@ public class ChatController {
     private double budgetUsd;
 
     private static final String DATA_DIR = "chat_threads";
+    // Path base assoluto calcolato una volta sola (per path-traversal check)
+    private static final java.nio.file.Path DATA_BASE =
+            Paths.get(DATA_DIR).toAbsolutePath().normalize();
 
     public ChatController(GptService gptService) {
         this.gptService = gptService;
@@ -117,9 +121,7 @@ public class ChatController {
     ) {
         resp.setContentType("text/plain; charset=UTF-8");
         try {
-            String username = (String) request.getSession().getAttribute("username");
-            if (username == null) username = "guest";
-
+            String username = sanitize((String) request.getSession().getAttribute("username"), "guest");
             String encKey = (String) request.getSession().getAttribute("encKey");
             if (encKey == null || encKey.trim().isEmpty()) {
                 encKey = username + ":server-fallback-secret";
@@ -235,22 +237,20 @@ public class ChatController {
        =========================== */
     @GetMapping("/image")
     public void serveImage(
-            @RequestParam("path") String path,
+            @RequestParam("path") String pathParam,
             @RequestParam(value = "pwd", required = false) String pwd,
             HttpServletRequest req,
             HttpServletResponse response
     ) throws IOException {
-        Path p = Paths.get(path);
-        if (!Files.exists(p)) { response.setStatus(404); return; }
-
-        byte[] bytes = Files.readAllBytes(p);
-
-        String encKey = pwd;
-        if (encKey == null) {
-            encKey = (String) req.getSession().getAttribute("encKey");
+        // ── Path traversal check ──────────────────────────────────
+        Path p = Paths.get(pathParam).toAbsolutePath().normalize();
+        if (!p.startsWith(DATA_BASE)) {
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            return;
         }
-        if (encKey != null && bytes.length > 28) {
-            try { bytes = gptService.decrypt(bytes, encKey); } catch (Exception ignored) {}
+        if (!Files.exists(p) || !Files.isRegularFile(p)) {
+            response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+            return;
         }
 
         String ext = FilenameUtils.getExtension(p.getFileName().toString()).toLowerCase();
@@ -264,9 +264,28 @@ public class ChatController {
         }
 
         response.setContentType(mime);
-        response.setHeader("Cache-Control", "no-store");
-        OutputStream os = response.getOutputStream();
-        try { os.write(bytes); } finally { os.flush(); }
+        response.setHeader("Cache-Control", "no-store, no-cache");
+
+        // Prova a decifrare (solo se il file supera i 28 byte di header)
+        String encKey = pwd != null ? pwd : (String) req.getSession().getAttribute("encKey");
+        long fileSize = Files.size(p);
+
+        if (encKey != null && fileSize > 28) {
+            try {
+                byte[] decrypted = gptService.decrypt(Files.readAllBytes(p), encKey);
+                response.setContentLength(decrypted.length);
+                response.getOutputStream().write(decrypted);
+                return;
+            } catch (Exception ignored) {
+                // fallback: serve raw
+            }
+        }
+
+        // Streaming diretto senza caricare tutto in memoria
+        response.setContentLengthLong(fileSize);
+        try (InputStream is = Files.newInputStream(p)) {
+            StreamUtils.copy(is, response.getOutputStream());
+        }
     }
 
     /* ===========================
@@ -324,6 +343,18 @@ public class ChatController {
     /* ===========================
        UTILS
        =========================== */
+    /**
+     * Sanifica username e threadId: ammette solo caratteri sicuri per path di filesystem.
+     * Blocca traversal (../ ecc.) e caratteri speciali.
+     */
+    static String sanitize(String input, String fallback) {
+        if (input == null || input.isBlank()) return fallback;
+        // UUID + nomi normali: alfanumerico, trattino, underscore, punto
+        String clean = input.replaceAll("[^a-zA-Z0-9._\\-]", "");
+        if (clean.isEmpty() || clean.equals("..") || clean.equals(".")) return fallback;
+        return clean.length() > 128 ? clean.substring(0, 128) : clean;
+    }
+
     private static String url(String s) {
         try { return URLEncoder.encode(s, "UTF-8"); } catch (UnsupportedEncodingException e) { return s; }
     }
