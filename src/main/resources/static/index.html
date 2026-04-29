@@ -520,8 +520,9 @@ td { color:#dbe2ec; }
 
       <label>Provider</label>
       <select id="provider">
+        <option value="nvidia" selected>NVIDIA (free)</option>
+        <option value="gemini">Google Gemini</option>
         <option value="openai">OpenAI</option>
-        <option value="gemini">Gemini</option>
       </select>
 
       <label>Modello</label>
@@ -612,6 +613,20 @@ if ('serviceWorker' in navigator) {
 
 /* ── MODELLI per provider ───────────────────── */
 const MODELS = {
+  nvidia: [
+    { value: 'meta/llama-3.3-70b-instruct',            label: '🟢 Llama 3.3 70B (free)' },
+    { value: 'nvidia/llama-3.1-nemotron-70b-instruct', label: '🟢 Nemotron 70B (free)' },
+    { value: 'meta/llama-3.1-405b-instruct',           label: '🟢 Llama 3.1 405B (free)' },
+    { value: 'meta/llama-3.2-90b-vision-instruct',     label: '🟢 Llama 3.2 90B Vision (free)' },
+    { value: 'mistralai/mistral-large-2-instruct',     label: '🟢 Mistral Large 2 (free)' },
+    { value: 'microsoft/phi-3-medium-128k-instruct',   label: '🟢 Phi-3 Medium 128K (free)' },
+  ],
+  gemini: [
+    { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+    { value: 'gemini-2.5-pro',   label: 'Gemini 2.5 Pro' },
+    { value: 'gemini-1.5-pro',   label: 'Gemini 1.5 Pro' },
+    { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+  ],
   openai: [
     { value: 'gpt-4o',      label: 'GPT-4o' },
     { value: 'gpt-4o-mini', label: 'GPT-4o mini' },
@@ -619,12 +634,6 @@ const MODELS = {
     { value: 'o1',          label: 'o1' },
     { value: 'o3-mini',     label: 'o3-mini' },
   ],
-  gemini: [
-    { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-    { value: 'gemini-2.5-pro',   label: 'Gemini 2.5 Pro' },
-    { value: 'gemini-1.5-pro',   label: 'Gemini 1.5 Pro' },
-    { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
-  ]
 };
 
 function updateModels() {

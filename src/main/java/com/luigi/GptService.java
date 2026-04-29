@@ -56,6 +56,9 @@ public class GptService {
     @Value("${gemini.api.key:}")
     private String geminiApiKey;
 
+    @Value("${nvidia.api.key:}")
+    private String nvidiaApiKey;
+
     @Value("${app.base-url}")
     private String baseUrl;
 
@@ -79,6 +82,13 @@ public class GptService {
         PRICE_MAP.put("gemini-2.5-pro",      new double[]{0.00125,  0.010});
         PRICE_MAP.put("gemini-1.5-pro",      new double[]{0.00125,  0.005});
         PRICE_MAP.put("gemini-1.5-flash",    new double[]{0.0000375,0.00015});
+        // NVIDIA NIM – free tier (crediti gratuiti), prezzi simbolici dopo
+        PRICE_MAP.put("meta/llama-3.3-70b-instruct",            new double[]{0.0, 0.0});
+        PRICE_MAP.put("meta/llama-3.1-405b-instruct",           new double[]{0.0, 0.0});
+        PRICE_MAP.put("nvidia/llama-3.1-nemotron-70b-instruct", new double[]{0.0, 0.0});
+        PRICE_MAP.put("meta/llama-3.2-90b-vision-instruct",     new double[]{0.0, 0.0});
+        PRICE_MAP.put("mistralai/mistral-large-2-instruct",     new double[]{0.0, 0.0});
+        PRICE_MAP.put("microsoft/phi-3-medium-128k-instruct",   new double[]{0.0, 0.0});
     }
 
     // ====== ENTRYPOINT PRINCIPALE ======
@@ -141,6 +151,9 @@ public class GptService {
 
         if (effectiveModel.startsWith("gemini")) {
             reply = callGemini(userText, image, system, historySnapshot, effectiveModel, tokenCounts);
+        } else if (effectiveModel.contains("/")) {
+            // Modelli NVIDIA NIM: formato "provider/model-name"
+            reply = callNvidia(userText, image, system, historySnapshot, effectiveModel, shortContext, tokenCounts);
         } else {
             // Costruisci messagesToSend in formato OpenAI Responses API
             List<Map<String, Object>> messagesToSend = new ArrayList<>();
@@ -307,6 +320,84 @@ public class GptService {
         return root.path("candidates").path(0)
                 .path("content").path("parts").path(0)
                 .path("text").asText("");
+    }
+
+    // ====== NVIDIA NIM (OpenAI-compatible Chat Completions) ======
+    private String callNvidia(String userText,
+                               MultipartFile image,
+                               String system,
+                               List<Map<String, Object>> history,
+                               String model, boolean shortContext,
+                               int[] tokensOut) throws Exception {
+
+        if (nvidiaApiKey == null || nvidiaApiKey.isBlank()) {
+            return "❌ NVIDIA API key non configurata (nvidia.api.key in application.properties).";
+        }
+
+        List<Map<String, Object>> messages = new ArrayList<>();
+
+        // System message
+        if (system != null && !system.isBlank()) {
+            messages.add(Map.of("role", "system", "content", system));
+        }
+
+        // History
+        if (!shortContext) {
+            for (Map<String, Object> msg : history) {
+                String role = String.valueOf(msg.get("role"));
+                String apiRole = "assistant".equals(role) ? "assistant" : "user";
+                String text = extractText(msg.get("content"));
+                if (text != null && !text.isBlank()) {
+                    messages.add(Map.of("role", apiRole, "content", text));
+                }
+            }
+        }
+
+        // Messaggio utente corrente (con eventuale immagine per modelli vision)
+        boolean isVisionModel = model.contains("vision") || model.contains("llava");
+        if (image != null && !image.isEmpty() && isVisionModel) {
+            String mime = image.getContentType() != null ? image.getContentType() : "image/jpeg";
+            String b64 = Base64.getEncoder().encodeToString(image.getBytes());
+            List<Map<String, Object>> parts = new ArrayList<>();
+            if (userText != null && !userText.isBlank()) {
+                parts.add(Map.of("type", "text", "text", userText));
+            }
+            parts.add(Map.of("type", "image_url",
+                    "image_url", Map.of("url", "data:" + mime + ";base64," + b64)));
+            messages.add(Map.of("role", "user", "content", parts));
+        } else {
+            messages.add(Map.of("role", "user", "content",
+                    userText != null ? userText : ""));
+        }
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("model", model);
+        body.put("messages", messages);
+        body.put("max_tokens", 4096);
+        body.put("temperature", 0.6);
+        body.put("top_p", 0.95);
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://integrate.api.nvidia.com/v1/chat/completions"))
+                .header("Authorization", "Bearer " + nvidiaApiKey)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
+                .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        JsonNode root = mapper.readTree(response.body());
+
+        if (root.has("error")) {
+            return "❌ Errore NVIDIA: " + root.path("error").path("message").asText();
+        }
+
+        tokensOut[0] = root.path("usage").path("prompt_tokens").asInt(0);
+        tokensOut[1] = root.path("usage").path("completion_tokens").asInt(0);
+
+        System.out.println("NVIDIA model=" + model
+                + " in=" + tokensOut[0] + " out=" + tokensOut[1]);
+
+        return root.path("choices").path(0).path("message").path("content").asText("");
     }
 
     // ====== HELPERS ======
