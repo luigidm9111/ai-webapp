@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <title>Login GPT</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+  
+  
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #1e1e1e;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+}
+
+    .login-box {
+      background: #2a2a2a;
+      color: white;
+      padding: 2rem;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 400px;
+      box-shadow: 0 0 12px rgba(0,0,0,0.4);
+    }
+    .login-box h2 {
+      margin-bottom: 1rem;
+    }
+    .login-box input {
+  width: 100%;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  border-radius: 8px;
+  border: none;
+  font-size: 1rem;
+  background-color: #e0f2f1;
+  color: black;
+  box-sizing: border-box;
+}
+
+.login-box input:focus {
+  outline: 2px solid #4CAF50;
+}
+.login-box button {
+  width: 100%;
+  padding: 0.75rem;
+  background: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+.login-box button:hover {
+  background: #43a047;
+}
+  </style>
+</head>
+<body>
+  <div class="login-box">
+    <h2>Login</h2>
+    <input id="username" placeholder="Username" />
+    <input id="password" type="password" placeholder="Password" />
+    <button onclick="login()">Accedi</button>
+    <p id="error" style="color:red;"></p>
+  </div>
+
+  <script>
+  async function login() {
+	  const username = document.getElementById("username").value.trim();
+	  const password = document.getElementById("password").value.trim();
+
+	  const params = new URLSearchParams();
+	  params.append("username", username);
+	  params.append("password", password);
+
+	  const res = await fetch("/auth/login", {
+	    method: "POST",
+	    headers: {
+	      "Content-Type": "application/x-www-form-urlencoded",
+	    },
+	    body: params.toString(),
+	  });
+
+	  const result = await res.text();
+	  if (result === "OK") {
+	    location.href = "/";
+	  } else {
+	    document.getElementById("error").textContent = "Credenziali non valide.";
+	  }
+	}
+
+  </script>
+</body>
+</html>

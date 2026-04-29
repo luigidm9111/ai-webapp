@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <title>AI WebApp</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#111111">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <link  href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.1/dist/cropper.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.1/dist/cropper.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/common.min.js"></script>
+
+<style>
+:root {
+  --bg: #f5f5f5;
+  --text: #1a1a1a;
+  --surface: #ffffff;
+  --surface2: #eeeeee;
+  --border: #d0d0d0;
+  --user-msg: #dbeafe;
+  --user-msg-text: #1e3a5f;
+  --bot-msg: #f3e8ff;
+  --bot-msg-text: #3b1f5e;
+  --sidebar-bg: #1e1e2e;
+  --sidebar-text: #cdd6f4;
+  --sidebar-active: #89b4fa;
+  --sidebar-width: 260px;
+  --accent: #6c63ff;
+  --accent-hover: #574fd6;
+  --danger: #e53e3e;
+  --radius: 10px;
+  --topbar-h: 0px; /* aggiornato via JS */
+  --inputbar-h: 80px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #13131a;
+    --text: #e0e0e0;
+    --surface: #1e1e2e;
+    --surface2: #2a2a3e;
+    --border: #383850;
+    --user-msg: #1e3a5f;
+    --user-msg-text: #bfdbfe;
+    --bot-msg: #2e1a4a;
+    --bot-msg-text: #e9d5ff;
+  }
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100dvh;
+  overflow: hidden;
+  display: flex;
+}
+
+/* ── SIDEBAR ─────────────────────────────────── */
+.sidebar {
+  width: var(--sidebar-width);
+  height: 100dvh;
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: transform 0.25s ease;
+  z-index: 200;
+}
+.sidebar-header {
+  padding: 1rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--sidebar-active);
+  border-bottom: 1px solid #2a2a40;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.sidebar-header span { font-size: 1.3rem; }
+
+.sidebar-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: .5rem;
+}
+.sidebar-scroll::-webkit-scrollbar { width: 4px; }
+.sidebar-scroll::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+
+.stats-box {
+  background: #16162a;
+  border: 1px solid #2e2e50;
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  font-size: .82rem;
+}
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+  color: #a0aabb;
+}
+.stat-row strong { color: #cdd6f4; }
+.stat-divider { border: none; border-top: 1px solid #2e2e50; margin: 4px 0; }
+
+.btn-refresh {
+  background: #2a2a40;
+  border: 1px solid #3a3a60;
+  color: #89b4fa;
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: .8rem;
+  cursor: pointer;
+  float: right;
+  margin-top: 4px;
+}
+.btn-refresh:hover { background: #363660; }
+
+.thread-list { margin-top: 4px; }
+
+.thread-item {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .45rem .6rem;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-bottom: 3px;
+  transition: background .15s;
+}
+.thread-item:hover { background: #2a2a40; }
+.thread-item.active { background: #313160; border-left: 3px solid var(--sidebar-active); }
+
+.thread-title {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: .9rem;
+  outline: none;
+}
+.thread-title[contenteditable="true"]:focus {
+  border-bottom: 1px dashed #666;
+  white-space: normal;
+  overflow: visible;
+}
+
+.thread-del {
+  color: #555;
+  cursor: pointer;
+  font-size: 1rem;
+  flex-shrink: 0;
+  transition: color .15s;
+}
+.thread-del:hover { color: var(--danger); }
+
+.sidebar-footer {
+  padding: .6rem;
+  border-top: 1px solid #2a2a40;
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+}
+
+.btn-new-chat {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: .55rem;
+  cursor: pointer;
+  font-size: .9rem;
+  font-weight: 600;
+  text-align: center;
+  transition: background .15s;
+}
+.btn-new-chat:hover { background: var(--accent-hover); }
+
+.btn-manage {
+  background: #2a3a4a;
+  color: #90b8d8;
+  border: 1px solid #3a5a6a;
+  border-radius: 8px;
+  padding: .45rem;
+  cursor: pointer;
+  font-size: .85rem;
+  text-align: center;
+  transition: background .15s;
+  display: none;
+}
+.btn-manage:hover { background: #334455; }
+
+.btn-logout {
+  background: #2a1515;
+  color: #ff8080;
+  border: 1px solid #4a2222;
+  border-radius: 8px;
+  padding: .45rem;
+  cursor: pointer;
+  font-size: .85rem;
+  text-align: center;
+  font-weight: 600;
+  transition: background .15s;
+}
+.btn-logout:hover { background: #3a1a1a; }
+
+/* ── OVERLAY (mobile) ──────────────────────── */
+#sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.5);
+  z-index: 199;
+}
+
+/* ── MAIN ────────────────────────────────────── */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+  position: relative;
+  min-width: 0;
+}
+
+/* ── TOP BAR ─────────────────────────────────── */
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: .6rem .8rem;
+  flex-shrink: 0;
+  z-index: 100;
+}
+.topbar-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+.topbar label {
+  font-size: .8rem;
+  color: #888;
+  white-space: nowrap;
+}
+.topbar select, .topbar input[type=checkbox] {
+  font-size: .85rem;
+  padding: .3rem .5rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  cursor: pointer;
+}
+.topbar select:focus { outline: 2px solid var(--accent); border-color: transparent; }
+
+.system-wrap {
+  flex: 1;
+  min-width: 160px;
+  display: flex;
+  align-items: center;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: .3rem .6rem;
+}
+.system-wrap textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  font-size: .9rem;
+  color: var(--text);
+  max-height: 120px;
+  line-height: 1.4;
+}
+
+/* toggle-sidebar btn (mobile only) */
+#btn-toggle-sidebar {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  cursor: pointer;
+  color: var(--text);
+  padding: .2rem;
+  flex-shrink: 0;
+}
+
+/* ── CHAT HISTORY ────────────────────────────── */
+#chat-history {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  scroll-behavior: smooth;
+}
+#chat-history::-webkit-scrollbar { width: 5px; }
+#chat-history::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+@media (prefers-color-scheme: dark) {
+  #chat-history::-webkit-scrollbar-thumb { background: #444; }
+}
+
+.message-wrap {
+  display: flex;
+  margin: .4rem 0;
+}
+.message-wrap.user  { justify-content: flex-end; }
+.message-wrap.bot   { justify-content: flex-start; }
+
+.message {
+  max-width: min(78%, 820px);
+  padding: .7rem .95rem;
+  border-radius: 14px;
+  line-height: 1.55;
+  word-break: break-word;
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+}
+.message.user { background: var(--user-msg); color: var(--user-msg-text); border-bottom-right-radius: 4px; }
+.message.bot  { background: var(--bot-msg);  color: var(--bot-msg-text);  border-bottom-left-radius: 4px; }
+.message.pending { opacity: .6; animation: pulse 1.2s infinite; }
+@keyframes pulse { 0%,100%{opacity:.5} 50%{opacity:.9} }
+
+.message p { margin: .35rem 0; }
+.message p:first-child { margin-top: 0; }
+.message p:last-child  { margin-bottom: 0; }
+
+/* Code blocks */
+.code-block { position:relative; border:1px solid #2b3246; background:#0b0d14; border-radius:10px; margin:.5rem 0; overflow:hidden; }
+.code-head { display:flex; justify-content:space-between; align-items:center; background:#0e1220; color:#9fb3c8; border-bottom:1px solid #20263a; padding:5px 10px; font-size:.82rem; }
+.code-controls { display:flex; gap:5px; }
+.code-controls button { background:#141a2a; border:1px solid #24304a; color:#cdd9e5; border-radius:6px; padding:3px 8px; font-size:.78rem; cursor:pointer; transition:background .15s; }
+.code-controls button:hover { background:#1e2a3a; }
+pre { margin:0; max-height:400px; overflow:auto; }
+.code-block.collapsed pre { max-height:180px; }
+.show-more { display:block; text-align:center; padding:5px; cursor:pointer; background:#0e1220; border-top:1px solid #20263a; color:#8ea2b8; font-size:.8rem; }
+.show-more:hover { background:#131b2e; }
+
+/* Tables */
+.table-wrap { overflow:auto; border:1px solid #2b3246; border-radius:10px; margin:.5rem 0; background:#0b0d14; }
+table { border-collapse:collapse; width:100%; min-width:500px; }
+th,td { border:1px solid #2b3246; padding:7px 10px; font-size:.88rem; }
+th { background:#0e1220; color:#c5d1e0; text-align:left; }
+td { color:#dbe2ec; }
+.tbl-actions { display:flex; gap:6px; padding:5px 6px; background:#0e1220; border-top:1px solid #2b3246; }
+.btn-tbl { background:#1b2133; border:1px solid #2b3654; color:#e1e8f5; border-radius:6px; padding:4px 10px; font-size:.8rem; cursor:pointer; }
+.btn-tbl:hover { background:#232f50; }
+
+/* Attachment preview */
+#attachment-preview {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 6px 1rem;
+  display: none;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+#attachment-preview.show { display: flex; }
+#attachment-preview img { max-height: 72px; max-width: 30%; object-fit: contain; border-radius: 6px; }
+#attachment-preview .file-name { font-size: .85rem; color: #888; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.remove-att { margin-left: auto; background: var(--danger); color: #fff; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: .85rem; flex-shrink: 0; }
+
+/* Input area */
+.input-area {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: .6rem .8rem;
+  display: flex;
+  align-items: flex-end;
+  gap: .5rem;
+  flex-shrink: 0;
+}
+.input-box {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: .5rem .75rem;
+  gap: .4rem;
+  transition: border-color .2s;
+}
+.input-box:focus-within { border-color: var(--accent); }
+.input-box textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  font-size: 1rem;
+  color: var(--text);
+  max-height: 200px;
+  line-height: 1.45;
+}
+.upload-btn { font-size: 1.3rem; cursor: pointer; color: #888; transition: color .15s; flex-shrink: 0; align-self: center; }
+.upload-btn:hover { color: var(--accent); }
+.send-btn {
+  background: var(--accent);
+  border: none;
+  color: white;
+  border-radius: 50%;
+  width: 40px; height: 40px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s;
+}
+.send-btn:hover { background: var(--accent-hover); }
+.send-btn:disabled { background: #555; cursor: default; }
+
+/* Loader overlay */
+#loader {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,.35);
+  display: none; align-items: center; justify-content: center;
+  z-index: 50;
+}
+#loader.show { display: flex; }
+.spinner { border: 5px solid rgba(255,255,255,.2); border-top-color: var(--accent); border-radius: 50%; width: 46px; height: 46px; animation: spin .85s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Image modal */
+#image-modal {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.8);
+  display: none; align-items: center; justify-content: center;
+  z-index: 9999;
+}
+#image-modal.show { display: flex; }
+#image-modal .modal-box { position: relative; max-width: 90vw; max-height: 90vh; }
+#image-modal img { max-width: 100%; max-height: 85vh; border-radius: 10px; display: block; }
+#close-modal { position: absolute; top: -12px; right: -12px; background: #000a; color: #fff; border: none; border-radius: 50%; width: 28px; height: 28px; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+/* Crop modal */
+#crop-modal {
+  display: none; position: fixed; z-index: 10000; inset: 0;
+  background: rgba(0,0,0,.9); align-items: center; justify-content: center;
+  flex-direction: column; gap: .75rem; padding: 1rem;
+}
+#crop-modal.show { display: flex; }
+#crop-wrapper { max-width: 100%; max-height: 70vh; overflow: hidden; background: #111; border-radius: 8px; }
+#crop-image { display: block; max-width: 100%; max-height: 70vh; object-fit: contain; }
+#crop-status { color: #ccc; font-size: .85rem; min-height: 1.2em; }
+.crop-controls { display: flex; gap: .4rem; flex-wrap: wrap; justify-content: center; }
+.btn-crop { background: #1e2a3a; border: 1px solid #2b3654; color: #e1e8f5; border-radius: 8px; padding: 6px 12px; font-size: .85rem; cursor: pointer; }
+.btn-crop:hover { background: #2a3a50; }
+.btn-crop.primary { background: var(--accent); border-color: var(--accent); }
+.btn-crop.primary:hover { background: var(--accent-hover); }
+
+/* Mobile */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    top: 0; left: 0;
+    height: 100dvh;
+    transform: translateX(-100%);
+  }
+  .sidebar.open { transform: translateX(0); }
+  #sidebar-overlay.show { display: block; }
+  #btn-toggle-sidebar { display: flex; }
+}
+</style>
+</head>
+<body>
+
+<!-- Sidebar overlay (mobile) -->
+<div id="sidebar-overlay"></div>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header"><span>💬</span> AI WebApp</div>
+
+  <div class="sidebar-scroll">
+    <div class="stats-box" id="usage-box">
+      <div class="stat-row"><span>Token oggi</span><strong id="u-tok-today">–</strong></div>
+      <div class="stat-row"><span>Costo oggi</span><strong id="u-cost-today">–</strong></div>
+      <hr class="stat-divider">
+      <div class="stat-row"><span>Token mese</span><strong id="u-tok-month">–</strong></div>
+      <div class="stat-row"><span>Costo mese</span><strong id="u-cost-month">–</strong></div>
+      <div class="stat-row"><span>Budget rimanente</span><strong id="u-remaining">–</strong></div>
+      <button class="btn-refresh" id="btn-refresh-usage">↻</button>
+    </div>
+
+    <div class="thread-list" id="thread-list"></div>
+  </div>
+
+  <div class="sidebar-footer">
+    <button class="btn-new-chat" id="btn-new-chat">＋ Nuova Chat</button>
+    <button class="btn-manage" id="btn-manage-users" onclick="location.href='/gestione-utenti.html'">⚙️ Gestione Utenti</button>
+    <button class="btn-logout" id="btn-logout">⎋ Logout</button>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+
+  <!-- TOP BAR (contesto + selezione provider/modello) -->
+  <div class="topbar" id="topbar">
+    <div class="topbar-row">
+      <button id="btn-toggle-sidebar">☰</button>
+
+      <label>Contesto</label>
+      <div class="system-wrap">
+        <textarea id="system" rows="1" placeholder="Es: Rispondi come tutor esperto..."></textarea>
+      </div>
+
+      <label>Provider</label>
+      <select id="provider">
+        <option value="openai">OpenAI</option>
+        <option value="gemini">Gemini</option>
+      </select>
+
+      <label>Modello</label>
+      <select id="model"></select>
+
+      <span id="openai-opts" style="display:contents">
+        <label>Reasoning</label>
+        <select id="reasoning-effort">
+          <option value="auto" selected>auto</option>
+          <option value="low">low</option>
+          <option value="medium">medium</option>
+          <option value="high">high</option>
+        </select>
+      </span>
+
+      <label><input type="checkbox" id="ocr-flag" /> OCR</label>
+      <label><input type="checkbox" id="short-context-flag" /> No cronologia</label>
+    </div>
+  </div>
+
+  <!-- CHAT -->
+  <div id="chat-history"></div>
+
+  <!-- Loader -->
+  <div id="loader"><div class="spinner"></div></div>
+
+  <!-- Attachment preview -->
+  <div id="attachment-preview"></div>
+
+  <!-- Input -->
+  <form id="chat-form" class="input-area">
+    <label class="upload-btn" for="file-upload" title="Allega immagine">📎</label>
+    <input type="file" id="file-upload" accept="image/*" style="display:none" />
+    <div class="input-box">
+      <textarea id="msg-input" rows="1" placeholder="Scrivi un messaggio…"></textarea>
+    </div>
+    <button type="submit" class="send-btn" id="send-btn">➤</button>
+  </form>
+</main>
+
+<!-- Image modal -->
+<div id="image-modal">
+  <div class="modal-box">
+    <button id="close-modal">✕</button>
+    <img id="modal-img" />
+  </div>
+</div>
+
+<!-- Crop modal -->
+<div id="crop-modal">
+  <div id="crop-wrapper"><img id="crop-image" /></div>
+  <div id="crop-status"></div>
+  <div class="crop-controls">
+    <button class="btn-crop" onclick="rotateCrop(-5)">↺ 5°</button>
+    <button class="btn-crop" onclick="rotateCrop(-1)">↺ 1°</button>
+    <button class="btn-crop" onclick="rotateCrop(1)">↻ 1°</button>
+    <button class="btn-crop" onclick="rotateCrop(5)">↻ 5°</button>
+    <button class="btn-crop" onclick="resetRotation()">↩ Reset</button>
+    <button class="btn-crop" onclick="applyGraphicImprovements()">✨ Migliora</button>
+    <button class="btn-crop primary" onclick="applyCrop()">✂️ Ritaglia</button>
+    <button class="btn-crop" onclick="cancelCrop()">Annulla</button>
+  </div>
+</div>
+
+<script>
+/* ── PWA ───────────────────────────────────── */
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
+(function iosHint() {
+  if (/iphone|ipad|ipod/i.test(navigator.userAgent) && !window.navigator.standalone) {
+    if (!sessionStorage.getItem('a2hs')) {
+      sessionStorage.setItem('a2hs', '1');
+      setTimeout(() => {
+        const n = document.createElement('div');
+        Object.assign(n.style, {
+          position:'fixed', bottom:'90px', left:'50%', transform:'translateX(-50%)',
+          background:'#111b', color:'#fff', padding:'8px 14px', border:'1px solid #333',
+          borderRadius:'10px', zIndex:'99999', fontSize:'.85rem'
+        });
+        n.textContent = 'Su iPhone: Condividi → Aggiungi a Home';
+        document.body.appendChild(n);
+        setTimeout(() => n.remove(), 4000);
+      }, 1500);
+    }
+  }
+})();
+
+/* ── MODELLI per provider ───────────────────── */
+const MODELS = {
+  openai: [
+    { value: 'gpt-4o',      label: 'GPT-4o' },
+    { value: 'gpt-4o-mini', label: 'GPT-4o mini' },
+    { value: 'gpt-5.1',     label: 'GPT-5.1' },
+    { value: 'o1',          label: 'o1' },
+    { value: 'o3-mini',     label: 'o3-mini' },
+  ],
+  gemini: [
+    { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+    { value: 'gemini-2.5-pro',   label: 'Gemini 2.5 Pro' },
+    { value: 'gemini-1.5-pro',   label: 'Gemini 1.5 Pro' },
+    { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+  ]
+};
+
+function updateModels() {
+  const provider = document.getElementById('provider').value;
+  const sel = document.getElementById('model');
+  sel.innerHTML = '';
+  MODELS[provider].forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m.value;
+    opt.textContent = m.label;
+    sel.appendChild(opt);
+  });
+  const oopts = document.getElementById('openai-opts');
+  if (oopts) oopts.style.display = provider === 'openai' ? 'contents' : 'none';
+}
+document.getElementById('provider').addEventListener('change', updateModels);
+updateModels(); // init
+
+/* ── STATE ─────────────────────────────────── */
+let currentThread = null;
+let isOCRRunning = false;
+let uploadedFile = null;
+let cropper = null;
+let imageForCropperBlob = null;
+let totalRotation = 0;
+let isSending = false;
+
+/* ── HELPERS ───────────────────────────────── */
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+}
+function showLoader(v) { document.getElementById('loader').classList.toggle('show', v); }
+function scrollChat() {
+  const c = document.getElementById('chat-history');
+  c.scrollTo({ top: c.scrollHeight, behavior: 'smooth' });
+}
+function uuid() { return crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2); }
+
+/* ── SIDEBAR ───────────────────────────────── */
+const sidebar  = document.getElementById('sidebar');
+const overlay  = document.getElementById('sidebar-overlay');
+
+document.getElementById('btn-toggle-sidebar').addEventListener('click', () => {
+  sidebar.classList.toggle('open');
+  overlay.classList.toggle('show');
+});
+overlay.addEventListener('click', closeSidebar);
+function closeSidebar() {
+  sidebar.classList.remove('open');
+  overlay.classList.remove('show');
+}
+
+/* ── LOGOUT ────────────────────────────────── */
+document.getElementById('btn-logout').addEventListener('click', async () => {
+  await fetch('/auth/logout', { method: 'POST' }).catch(() => {});
+  window.location.href = '/login.html';
+});
+
+/* ── ADMIN ─────────────────────────────────── */
+async function loadMe() {
+  try {
+    const r = await fetch('/api/me');
+    const me = await r.json();
+    if (me.admin) {
+      document.getElementById('btn-manage-users').style.display = 'block';
+    }
+  } catch (_) {}
+}
+
+/* ── USAGE ─────────────────────────────────── */
+async function fetchUsage() {
+  try {
+    const r = await fetch('/api/usage');
+    const u = await r.json();
+    const fmt = n => (n || 0).toLocaleString('it-IT');
+    const tokToday = (u.todayInputTokens || 0) + (u.todayOutputTokens || 0);
+    const tokMonth = (u.monthInputTokens || 0) + (u.monthOutputTokens || 0);
+    document.getElementById('u-tok-today').textContent  = fmt(tokToday);
+    document.getElementById('u-cost-today').textContent = '$' + (u.todayUsd || 0).toFixed(3);
+    document.getElementById('u-tok-month').textContent  = fmt(tokMonth);
+    document.getElementById('u-cost-month').textContent = '$' + (u.monthUsd || 0).toFixed(3);
+    document.getElementById('u-remaining').textContent  = '$' + (u.remainingUsd || 0).toFixed(2);
+  } catch (_) {}
+}
+document.getElementById('btn-refresh-usage').addEventListener('click', fetchUsage);
+
+/* ── THREADS ───────────────────────────────── */
+async function loadThreads() {
+  try {
+    const r = await fetch('/api/threads');
+    const list = await r.json();
+    const container = document.getElementById('thread-list');
+    container.innerHTML = '';
+    list.forEach(t => {
+      const item = document.createElement('div');
+      item.className = 'thread-item' + (t.id === currentThread ? ' active' : '');
+
+      const title = document.createElement('div');
+      title.className = 'thread-title';
+      title.textContent = t.title || t.id;
+      title.contentEditable = 'true';
+      title.spellcheck = false;
+
+      // click sul titolo: carica thread (solo se non in edit)
+      title.addEventListener('click', (e) => {
+        if (document.activeElement !== title) {
+          e.preventDefault();
+          loadThread(t.id);
+        }
+      });
+      title.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); title.blur(); }
+        e.stopPropagation(); // non triggerare il submit della form
+      });
+      title.addEventListener('blur', async () => {
+        const newTitle = title.textContent.trim();
+        if (newTitle && newTitle !== (t.title || '')) {
+          const fd = new FormData();
+          fd.append('id', t.id);
+          fd.append('title', newTitle);
+          await fetch('/api/thread/title', { method: 'POST', body: fd });
+        }
+      });
+
+      const del = document.createElement('span');
+      del.className = 'thread-del';
+      del.textContent = '🗑';
+      del.title = 'Elimina';
+      del.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!confirm('Eliminare questa chat?')) return;
+        await fetch('/api/thread?id=' + encodeURIComponent(t.id), { method: 'DELETE' });
+        if (currentThread === t.id) {
+          currentThread = null;
+          document.getElementById('chat-history').innerHTML = '';
+        }
+        loadThreads();
+      });
+
+      item.appendChild(title);
+      item.appendChild(del);
+      container.appendChild(item);
+    });
+  } catch (_) {}
+}
+
+async function loadThread(id) {
+  currentThread = id;
+  resetAttachment();
+  try {
+    const r = await fetch('/api/thread?id=' + encodeURIComponent(id));
+    const data = await r.json();
+    document.getElementById('system').value = data.system || '';
+    autoResize(document.getElementById('system'));
+    const chat = document.getElementById('chat-history');
+    chat.innerHTML = '';
+    (data.messages || []).forEach(m => appendMessage(m.content, m.role));
+    await loadThreads();
+    closeSidebar();
+    requestAnimationFrame(() => {
+      chat.scrollTo({ top: chat.scrollHeight, behavior: 'auto' });
+    });
+  } catch (_) {}
+}
+
+document.getElementById('btn-new-chat').addEventListener('click', () => {
+  currentThread = uuid();
+  document.getElementById('system').value = '';
+  autoResize(document.getElementById('system'));
+  document.getElementById('chat-history').innerHTML = '';
+  resetAttachment();
+  loadThreads();
+  closeSidebar();
+});
+
+/* ── IMAGE CROP ─────────────────────────────── */
+function rotateCrop(deg) { if (cropper) { totalRotation += deg; cropper.rotate(deg); } }
+function resetRotation() { if (cropper) { cropper.rotate(-totalRotation); totalRotation = 0; } }
+function cancelCrop() {
+  document.getElementById('crop-modal').classList.remove('show');
+  if (cropper) { cropper.destroy(); cropper = null; }
+  imageForCropperBlob = null;
+  resetFileInput();
+}
+
+async function applyGraphicImprovements() {
+  if (!cropper) return;
+  const status = document.getElementById('crop-status');
+  status.textContent = 'Elaborazione…';
+  try {
+    const blob = await new Promise(r => cropper.getCroppedCanvas().toBlob(r, 'image/png'));
+    const processed = await processImageGrayscale(blob);
+    cropper.destroy();
+    const ci = document.getElementById('crop-image');
+    ci.src = URL.createObjectURL(processed);
+    cropper = new Cropper(ci, { aspectRatio: NaN, viewMode: 1, autoCropArea: .8, background: false });
+    imageForCropperBlob = processed;
+    status.textContent = 'Fatto!';
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+  } finally {
+    setTimeout(() => { status.textContent = ''; }, 1500);
+  }
+}
+
+async function processImageGrayscale(blob, maxWidth = 2000) {
+  const img = await createImageBitmap(blob);
+  let w = img.width, h = img.height;
+  if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, w, h);
+  img.close && img.close();
+  const id = ctx.getImageData(0, 0, w, h);
+  for (let i = 0; i < id.data.length; i += 4) {
+    const g = id.data[i] * .299 + id.data[i+1] * .587 + id.data[i+2] * .114;
+    id.data[i] = id.data[i+1] = id.data[i+2] = g;
+  }
+  ctx.putImageData(id, 0, 0);
+  return new Promise(r => canvas.toBlob(r, 'image/png'));
+}
+
+async function applyCrop() {
+  if (!cropper) return;
+  cropper.getCroppedCanvas().toBlob(async (finalBlob) => {
+    document.getElementById('crop-modal').classList.remove('show');
+    cropper.destroy(); cropper = null;
+    document.getElementById('crop-status').textContent = '';
+    if (!finalBlob) return;
+    uploadedFile = new File([finalBlob], 'image.jpg', { type: 'image/jpeg' });
+    const useOCR = document.getElementById('ocr-flag').checked;
+    if (useOCR) {
+      isOCRRunning = true;
+      showAttachmentText('OCR in corso…');
+      try {
+        const processed = await processImageGrayscale(finalBlob);
+        const worker = await Tesseract.createWorker();
+        await worker.loadLanguage('ita'); await worker.initialize('ita');
+        const { data: { text } } = await worker.recognize(processed);
+        await worker.terminate();
+        const ta = document.getElementById('msg-input');
+        ta.value = text.trim();
+        autoResize(ta);
+        resetAttachment();
+        uploadedFile = null;
+      } catch (err) {
+        showAttachmentText('❌ OCR error: ' + err.message);
+      } finally {
+        isOCRRunning = false;
+      }
+    } else {
+      showAttachmentImage(uploadedFile);
+    }
+    imageForCropperBlob = null;
+  }, 'image/jpeg', 0.85);
+}
+
+async function showCropperModal(file) {
+  imageForCropperBlob = file;
+  document.getElementById('crop-status').textContent = '';
+  totalRotation = 0;
+  const ci = document.getElementById('crop-image');
+  ci.src = await readAsDataURL(file);
+  document.getElementById('crop-modal').classList.add('show');
+  if (cropper) cropper.destroy();
+  cropper = new Cropper(ci, { aspectRatio: NaN, viewMode: 1, autoCropArea: .8, background: false });
+}
+
+function readAsDataURL(file) {
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = e => res(e.target.result);
+    fr.onerror = rej;
+    fr.readAsDataURL(file);
+  });
+}
+
+/* ── ATTACHMENT PREVIEW ─────────────────────── */
+const attPrev = document.getElementById('attachment-preview');
+
+function showAttachmentImage(file) {
+  attPrev.innerHTML = '';
+  const img = document.createElement('img');
+  img.src = URL.createObjectURL(file);
+  attPrev.appendChild(img);
+  attPrev.appendChild(makeRemoveBtn());
+  attPrev.classList.add('show');
+}
+
+function showAttachmentText(text) {
+  attPrev.innerHTML = '';
+  const s = document.createElement('span');
+  s.className = 'file-name';
+  s.textContent = text;
+  attPrev.appendChild(s);
+  attPrev.classList.add('show');
+}
+
+function makeRemoveBtn() {
+  const btn = document.createElement('span');
+  btn.className = 'remove-att';
+  btn.textContent = '✕';
+  btn.title = 'Rimuovi';
+  btn.onclick = resetAttachment;
+  return btn;
+}
+
+function resetAttachment() {
+  attPrev.innerHTML = '';
+  attPrev.classList.remove('show');
+  uploadedFile = null;
+  imageForCropperBlob = null;
+  document.getElementById('file-upload').value = '';
+}
+
+function resetFileInput() {
+  document.getElementById('file-upload').value = '';
+}
+
+/* ── FILE INPUT EVENTS ──────────────────────── */
+document.getElementById('file-upload').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) { resetAttachment(); return; }
+  if (file.type.startsWith('image/')) showCropperModal(file);
+  else { uploadedFile = file; showAttachmentText('📎 ' + file.name); }
+});
+
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) {
+    showCropperModal(file);
+    return;
+  }
+  const text = e.dataTransfer.getData('text/plain');
+  if (text) {
+    const ta = document.getElementById('msg-input');
+    ta.value += text;
+    autoResize(ta);
+    ta.focus();
+  }
+});
+
+document.getElementById('msg-input').addEventListener('paste', e => {
+  const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
+  if (!items) return;
+  for (const it of items) {
+    if (it.kind === 'file' && it.type.startsWith('image/')) {
+      e.preventDefault();
+      showCropperModal(it.getAsFile());
+      return;
+    }
+  }
+});
+
+/* ── IMAGE MODAL ────────────────────────────── */
+document.getElementById('close-modal').addEventListener('click', () => {
+  document.getElementById('image-modal').classList.remove('show');
+});
+
+/* ── RENDERING MESSAGGI ─────────────────────── */
+function appendMessage(content, role, isPending = false) {
+  const chat = document.getElementById('chat-history');
+  const wrap = document.createElement('div');
+  wrap.className = 'message-wrap ' + (role === 'user' ? 'user' : 'bot');
+  const div = document.createElement('div');
+  div.className = 'message ' + (role === 'user' ? 'user' : 'bot');
+  if (isPending) div.classList.add('pending');
+
+  // content può essere stringa o array
+  if (typeof content === 'string' && content.trim().startsWith('[')) {
+    try { content = JSON.parse(content); } catch (_) {}
+  }
+
+  if (Array.isArray(content)) {
+    content.forEach(part => {
+      if (part.type === 'text') {
+        renderText(div, part.text || '');
+      } else if (part.type === 'image_file' && part.image_file?.path) {
+        appendImageEl(div, '/api/image?path=' + encodeURIComponent(part.image_file.path));
+      } else if (part.type === 'file' && part.filename) {
+        const a = document.createElement('a');
+        a.href = part.url || '#';
+        a.textContent = '📄 ' + part.filename;
+        a.target = '_blank';
+        a.style.cssText = 'display:block;margin-top:.4rem;color:#89b4fa';
+        div.appendChild(a);
+      }
+    });
+  } else if (typeof content === 'string') {
+    renderText(div, content);
+  }
+
+  wrap.appendChild(div);
+  chat.appendChild(wrap);
+  chat.scrollTop = chat.scrollHeight;
+  return div;
+}
+
+function renderText(container, text) {
+  // Se sono tabelle o code-block, non usare textContent diretto
+  const hasFence = /```/.test(text);
+  const hasPipe  = /\|/.test(text);
+
+  if (hasFence || hasPipe) {
+    // Renderizza prima come testo plain, poi trasforma
+    const inner = document.createElement('div');
+    inner.style.cssText = 'white-space:pre-wrap;word-break:break-word';
+    inner.textContent = text;
+    container.appendChild(inner);
+    if (hasFence) renderCodeBlocks(inner, text);
+    if (hasPipe)  tryRenderTables(container, text);
+  } else {
+    // Paragrafi semplici
+    const p = document.createElement('p');
+    p.style.whiteSpace = 'pre-wrap';
+    p.textContent = text;
+    container.appendChild(p);
+  }
+}
+
+function appendImageEl(container, src) {
+  const img = document.createElement('img');
+  img.src = src;
+  img.alt = 'image';
+  img.style.cssText = 'max-width:100%;border-radius:8px;margin-top:.4rem;cursor:pointer;display:block';
+  img.addEventListener('click', () => {
+    document.getElementById('modal-img').src = src;
+    document.getElementById('image-modal').classList.add('show');
+  });
+  container.appendChild(img);
+}
+
+/* ── CODE BLOCKS ────────────────────────────── */
+function renderCodeBlocks(container, rawText) {
+  if (container.dataset.codeRendered) return;
+  container.dataset.codeRendered = '1';
+  const fence = /```([a-zA-Z0-9_\-+.]*)\n?([\s\S]*?)```/g;
+  let html = container.innerHTML;
+  html = html.replace(fence, (_, lang, code) => {
+    const language = (lang || '').trim() || 'plaintext';
+    const id = 'cb_' + Math.random().toString(36).slice(2);
+    const escaped = code.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return `
+      <div class="code-block collapsed" data-cid="${id}">
+        <div class="code-head">
+          <span>${language}</span>
+          <div class="code-controls">
+            <button onclick="copyCode('${id}')">Copia</button>
+            <button onclick="toggleCode('${id}')">Espandi</button>
+          </div>
+        </div>
+        <pre><code id="${id}" class="language-${language}">${escaped}</code></pre>
+        <div class="show-more" onclick="toggleCode('${id}')">Mostra tutto ↕</div>
+      </div>`;
+  });
+  container.innerHTML = html;
+  container.querySelectorAll('pre code').forEach(el => {
+    try { hljs.highlightElement(el); } catch (_) {}
+  });
+}
+function copyCode(id) {
+  const el = document.getElementById(id);
+  if (el) navigator.clipboard.writeText(el.innerText).catch(() => {});
+}
+function toggleCode(id) {
+  const b = document.querySelector(`.code-block[data-cid="${id}"]`);
+  if (b) b.classList.toggle('collapsed');
+}
+
+/* ── TABLES ─────────────────────────────────── */
+function tryRenderTables(container, rawText) {
+  // JSON table
+  try {
+    const m = rawText.match(/```(?:json|table)?\s*([\s\S]*?)```/i);
+    if (m) {
+      const obj = JSON.parse(m[1]);
+      if (obj?.headers && obj?.rows) { mountTable(container, obj.headers, obj.rows); return; }
+    }
+  } catch (_) {}
+
+  // Markdown table
+  const md = detectMdTable(rawText);
+  if (md) mountTable(container, md.headers, md.rows);
+}
+
+function detectMdTable(text) {
+  const lines = text.split('\n');
+  let hi = -1;
+  for (let i = 0; i < lines.length - 1; i++) {
+    if (/\|/.test(lines[i]) && /^[:\-|\s]+$/.test(lines[i+1])) { hi = i; break; }
+  }
+  if (hi === -1) return null;
+  const headers = lines[hi].split('|').map(s => s.trim()).filter(Boolean);
+  const rows = [];
+  for (let j = hi + 2; j < lines.length; j++) {
+    if (!/\|/.test(lines[j])) break;
+    rows.push(lines[j].split('|').map(s => s.trim()).filter(Boolean));
+  }
+  return headers.length && rows.length ? { headers, rows } : null;
+}
+
+function mountTable(container, headers, rows) {
+  const wrap = document.createElement('div'); wrap.className = 'table-wrap';
+  const table = document.createElement('table');
+  const thead = document.createElement('thead');
+  const trh = document.createElement('tr');
+  headers.forEach(h => { const th = document.createElement('th'); th.textContent = h; trh.appendChild(th); });
+  thead.appendChild(trh); table.appendChild(thead);
+  const tbody = document.createElement('tbody');
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    headers.forEach((_, i) => { const td = document.createElement('td'); td.textContent = r[i] ?? ''; tr.appendChild(td); });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody); wrap.appendChild(table);
+
+  const acts = document.createElement('div'); acts.className = 'tbl-actions';
+  const bc = document.createElement('button'); bc.className = 'btn-tbl'; bc.textContent = '⬇ CSV';
+  bc.onclick = () => dlCSV(headers, rows);
+  const bx = document.createElement('button'); bx.className = 'btn-tbl'; bx.textContent = '⬇ XLS';
+  bx.onclick = () => dlXLS(headers, rows);
+  acts.append(bc, bx); wrap.appendChild(acts);
+  container.appendChild(wrap);
+}
+
+function dlCSV(headers, rows) {
+  const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const csv = [headers.map(esc).join(','), ...rows.map(r => headers.map((_, i) => esc(r[i])).join(','))].join('\n');
+  download(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), 'tabella.csv');
+}
+function dlXLS(headers, rows) {
+  const html = `<html><head><meta charset="UTF-8"></head><body><table border="1">
+    <tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr>
+    ${rows.map(r=>`<tr>${headers.map((_,i)=>`<td>${r[i]??''}</td>`).join('')}</tr>`).join('')}
+    </table></body></html>`;
+  download(new Blob([html], { type: 'application/vnd.ms-excel' }), 'tabella.xls');
+}
+function download(blob, name) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+}
+
+/* ── COMPRESSIONE IMMAGINE ──────────────────── */
+async function compressImage(blob, { maxDim = 1600, mime = 'image/jpeg', quality = .82 } = {}) {
+  let bm;
+  try { bm = await createImageBitmap(blob); }
+  catch { bm = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(blob); }); }
+  let { width: w, height: h } = bm;
+  if (w > h && w > maxDim)      { h = Math.round(h * maxDim / w); w = maxDim; }
+  else if (h > maxDim)           { w = Math.round(w * maxDim / h); h = maxDim; }
+  const canvas = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(w, h) : Object.assign(document.createElement('canvas'), { width: w, height: h });
+  canvas.getContext('2d', { alpha: false }).drawImage(bm, 0, 0, w, h);
+  bm.close?.();
+  return canvas instanceof OffscreenCanvas
+    ? canvas.convertToBlob({ type: mime, quality })
+    : new Promise(r => canvas.toBlob(r, mime, quality));
+}
+
+/* ── FORM SUBMIT ────────────────────────────── */
+document.getElementById('chat-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  if (isOCRRunning) { alert('⏳ Attendere il completamento OCR.'); return; }
+  if (isSending) return;
+
+  const ta = document.getElementById('msg-input');
+  const text = ta.value.trim();
+  if (!text && !uploadedFile) return;
+
+  if (!currentThread) currentThread = uuid();
+
+  // Mostra subito il messaggio utente
+  const userContent = [];
+  if (text) userContent.push({ type: 'text', text });
+  if (uploadedFile?.type?.startsWith('image/')) {
+    userContent.push({ type: 'image_file', image_file: { path: URL.createObjectURL(uploadedFile) } });
+  } else if (uploadedFile) {
+    userContent.push({ type: 'file', filename: uploadedFile.name });
+  }
+  appendMessage(userContent, 'user');
+
+  const ap = document.getElementById('attachment-preview');
+  ap.innerHTML = ''; ap.classList.remove('show');
+  ta.value = ''; ta.style.height = 'auto';
+
+  isSending = true;
+  showLoader(true);
+  document.getElementById('send-btn').disabled = true;
+  scrollChat();
+
+  const fd = new FormData();
+  fd.append('text', text);
+  fd.append('thread', currentThread);
+  fd.append('system', document.getElementById('system').value);
+  fd.append('model', document.getElementById('model').value);
+  fd.append('shortContext', document.getElementById('short-context-flag').checked);
+  fd.append('reasoningEffort', document.getElementById('reasoning-effort')?.value || 'auto');
+
+  if (uploadedFile) {
+    try {
+      const file = uploadedFile.type?.startsWith('image/')
+        ? new File([await compressImage(uploadedFile)], 'image.jpg', { type: 'image/jpeg' })
+        : uploadedFile;
+      fd.append('image', file, file.name);
+    } catch (_) {
+      fd.append('image', uploadedFile, uploadedFile.name || 'image');
+    }
+  }
+  resetAttachment();
+
+  const botDiv = appendMessage('', 'bot', true);
+
+  try {
+    const res = await fetch('/api/ask', { method: 'POST', body: fd });
+    if (!res.ok) {
+      const err = await res.text();
+      botDiv.textContent = '❌ Errore server: ' + (err || res.statusText);
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let received = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += dec.decode(value, { stream: true });
+      botDiv.textContent = received;
+      scrollChat();
+    }
+
+    if (!received.trim()) {
+      botDiv.textContent = '(risposta vuota)';
+    } else {
+      botDiv.innerHTML = '';
+      renderText(botDiv, received);
+    }
+
+    // Auto-title se prima risposta
+    const fd2 = new FormData();
+    fd2.append('id', currentThread);
+    fd2.append('title', text.substring(0, 50).trim() || 'Chat');
+    fetch('/api/thread/title', { method: 'POST', body: fd2 }).catch(() => {});
+
+    await loadThreads();
+    fetchUsage();
+
+  } catch (err) {
+    botDiv.textContent = '❌ Errore di rete: ' + err.message;
+  } finally {
+    showLoader(false);
+    botDiv.classList.remove('pending');
+    isSending = false;
+    document.getElementById('send-btn').disabled = false;
+    scrollChat();
+  }
+});
+
+/* ── TASTIERA ───────────────────────────────── */
+document.getElementById('msg-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    document.getElementById('chat-form').dispatchEvent(new Event('submit', { cancelable: true }));
+  }
+});
+document.getElementById('msg-input').addEventListener('input', function() { autoResize(this); });
+document.getElementById('system').addEventListener('input', function() { autoResize(this); });
+
+/* ── INIT ───────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', () => {
+  currentThread = uuid();
+  autoResize(document.getElementById('system'));
+  loadThreads();
+  fetchUsage();
+  loadMe();
+});
+</script>
+</body>
+</html>

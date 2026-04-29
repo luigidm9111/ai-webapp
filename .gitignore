@@ -1,0 +1,19 @@
+# Build
+target/
+
+# IDE
+.classpath
+.project
+.settings/
+*.iml
+.idea/
+
+# Secrets & dati locali
+src/main/resources/application.properties
+users.json
+chat_threads/
+usage/
+
+# OS
+.DS_Store
+Thumbs.db

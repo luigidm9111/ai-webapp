@@ -1,0 +1,8 @@
+openai.api.key=sk-proj-YOUR_OPENAI_KEY
+gemini.api.key=YOUR_GEMINI_KEY
+server.port=8080
+app.base-url=http://localhost:8080
+app.budget-usd=5.0
+spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.r2dbc.R2dbcAutoConfiguration
+spring.servlet.multipart.max-file-size=30MB
+spring.servlet.multipart.max-request-size=30MB

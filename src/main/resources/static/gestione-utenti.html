@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <title>Gestione Utenti</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --bg: #1e1e1e;
+      --text: #eee;
+      --card: #2a2a2a;
+      --green: #4CAF50;
+      --green-hover: #43a047;
+      --red: #e53935;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+
+    .admin-box {
+      background: var(--card);
+      padding: 2rem;
+      border-radius: 12px;
+      max-width: 600px;
+      width: 90%;
+      box-shadow: 0 0 12px rgba(0,0,0,0.4);
+    }
+
+    h2 {
+      margin-bottom: 1.5rem;
+      text-align: center;
+    }
+
+    input {
+      width: 100%;
+      padding: 0.7rem;
+      margin-bottom: 1rem;
+      border-radius: 8px;
+      border: none;
+      font-size: 1rem;
+      background: #444;
+      color: white;
+    }
+
+    button {
+      padding: 0.6rem 1.2rem;
+      margin-right: 0.5rem;
+      background: var(--green);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: var(--green-hover);
+    }
+
+    button.danger {
+      background: var(--red);
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+      background: #3a3a3a;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+    }
+
+    .generated-password {
+      margin-top: 1rem;
+      color: #a5d6a7;
+      font-family: monospace;
+      text-align: center;
+    }
+
+    .actions {
+      text-align: center;
+      margin-top: 1.5rem;
+    }
+
+  </style>
+</head>
+<body>
+  <div class="admin-box">
+    <h2>Gestione Utenti</h2>
+
+    <input id="new-user" placeholder="Nuovo username" />
+    <button onclick="createUser()">➕ Crea Utente</button>
+
+    <div id="generated" class="generated-password"></div>
+
+    <ul id="user-list"></ul>
+
+    <div class="actions">
+      <button onclick="location.href='/'">⬅ Torna alla Home</button>
+    </div>
+  </div>
+
+  <script>
+    async function loadUsers() {
+      const res = await fetch("/auth/users");
+      const list = await res.json();
+      const ul = document.getElementById("user-list");
+      ul.innerHTML = "";
+      list.forEach(u => {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <span>${u}</span>
+          ${u !== 'luigi' ? `<button class="danger" onclick="deleteUser('${u}')">❌ Elimina</button>` : ''}
+        `;
+        ul.appendChild(li);
+      });
+    }
+
+    async function createUser() {
+      const username = document.getElementById("new-user").value.trim();
+      if (!username) return;
+
+      const res = await fetch(`/auth/users`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ username })
+      });
+
+      const password = await res.text();
+      document.getElementById("generated").textContent = `🔐 Password per "${username}": ${password}`;
+      document.getElementById("new-user").value = "";
+      loadUsers();
+    }
+
+    async function deleteUser(username) {
+      if (!confirm(`Eliminare l'utente ${username}?`)) return;
+
+      await fetch(`/auth/users?username=${username}`, { method: "DELETE" });
+      loadUsers();
+    }
+
+    // Protezione: solo admin
+    fetch('/auth/me').then(r => r.text()).then(u => {
+      if (u !== "luigi") {
+        document.body.innerHTML = "<h2 style='color:red;text-align:center'>⛔ Accesso riservato all'amministratore.</h2>";
+      } else {
+        loadUsers();
+      }
+    });
+  </script>
+</body>
+</html>
